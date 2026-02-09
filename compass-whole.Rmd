@@ -17,6 +17,7 @@ library(writexl)
 library(qs2)
 library(Seurat)
 library(DoubletFinder)
+library(presto)
 library(Mixscale)
 library(SingleCellExperiment)
 library(gprofiler2)
@@ -119,6 +120,39 @@ crispr_counts_df$gRNA_name_cell_barcode <- paste0(crispr_counts_df$gRNA, "_", cr
 crispr_counts_df$gRNA <- NULL
 crispr_counts_df$cell_barcode <- NULL
 cleanser_posterior <- merge(x = cleanser_posterior, y = crispr_counts_df, all.x = TRUE, by = "gRNA_name_cell_barcode")
+```
+
+```{r}
+# Plotting distribution of posterior probabilities
+pp_dist <- cleanser_posterior %>% ggplot(aes(x = log10(posterior_probability))) + 
+  geom_histogram(binwidth = 0.1, fill = "lightblue", color = "black") + 
+  geom_vline(xintercept = c(log10(0.5), log10(0.1)), color = "red", linetype = "dashed") + 
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "log10(posterior probability)", title = "Distribution of Posterior Probabilities from CLEANSER") + 
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5))
+print(pp_dist)
+
+# Bin stats 
+bin_stats <- cleanser_posterior %>% dplyr::mutate(
+  log_pp = log10(posterior_probability),
+  bin_group = floor(log_pp / 0.1) * 0.1
+) %>% 
+  dplyr::group_by(bin_group) %>% 
+  dplyr::summarise(
+    count = n(),
+    mean_umi = mean(UMI, na.rm = TRUE)
+  )
+pp_umi_dist <- bin_stats %>% ggplot(aes(x = bin_group, y = mean_umi, size = log(count))) + 
+  geom_point() + 
+  labs(x = "log10(posterior probability)", y = "Mean UMI per bin", title = "Distribution of Posterior Probabilities from CLEANSER") + 
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5))
+print(pp_umi_dist)
+
+# Saving plots
+#ggsave(plot = pp_dist, filename = "iNeuron_figures/CLEANSER_posterior_probabilities_histogram.png", width = 3000, height = 2000, units = "px", dpi = 300)
+#ggsave(plot = pp_umi_dist, filename = "iNeuron_figures/CLEANSER_posterior_probabilities_UMIs.png", width = 3000, height = 2000, units = "px", dpi = 300)
 ```
 
 ```{r}
@@ -390,6 +424,39 @@ crispr_counts_df$gRNA_name_cell_barcode <- paste0(crispr_counts_df$gRNA, "_", cr
 crispr_counts_df$gRNA <- NULL
 crispr_counts_df$cell_barcode <- NULL
 cleanser_posterior <- merge(x = cleanser_posterior, y = crispr_counts_df, all.x = TRUE, by = "gRNA_name_cell_barcode")
+```
+
+```{r}
+# Plotting distribution of posterior probabilities
+pp_dist <- cleanser_posterior %>% ggplot(aes(x = log10(posterior_probability))) + 
+  geom_histogram(binwidth = 0.1, fill = "lightblue", color = "black") + 
+  geom_vline(xintercept = c(log10(0.5), log10(0.1)), color = "red", linetype = "dashed") + 
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "log10(posterior probability)", title = "Distribution of Posterior Probabilities from CLEANSER") + 
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5))
+print(pp_dist)
+
+# Bin stats 
+bin_stats <- cleanser_posterior %>% dplyr::mutate(
+  log_pp = log10(posterior_probability),
+  bin_group = floor(log_pp / 0.1) * 0.1
+) %>% 
+  dplyr::group_by(bin_group) %>% 
+  dplyr::summarise(
+    count = n(),
+    mean_umi = mean(UMI, na.rm = TRUE)
+  )
+pp_umi_dist <- bin_stats %>% ggplot(aes(x = bin_group, y = mean_umi, size = log(count))) + 
+  geom_point() + 
+  labs(x = "log10(posterior probability)", y = "Mean UMI per bin", title = "Distribution of Posterior Probabilities from CLEANSER") + 
+  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5))
+print(pp_umi_dist)
+
+# Saving plots
+#ggsave(plot = pp_dist, filename = "iPSC_figures/CLEANSER_posterior_probabilities_histogram.png", width = 3000, height = 2000, units = "px", dpi = 300)
+#ggsave(plot = pp_umi_dist, filename = "iPSC_figures/CLEANSER_posterior_probabilities_UMIs.png", width = 3000, height = 2000, units = "px", dpi = 300)
 ```
 
 ```{r}
@@ -1119,7 +1186,8 @@ gc()
 ```{r}
 # Merging the so_list
 so <- merge(x = so_list[[1]], y = so_list[2:length(so_list)],
-            add.cell.ids = c("compass_iNeuron", "compass_iPSC", "NDD_iNeuron", "NDD_iPSC"))
+            add.cell.ids = c("compass_iNeuron", "compass_iPSC"))
+#c("compass_iNeuron", "compass_iPSC", "NDD_iNeuron", "NDD_iPSC")
 so$sequencing_run_cell_type <- paste0(so$sequencing_run, "_", so$cell_type)
 so[["RNA"]] <- JoinLayers(so[["RNA"]])
 so[["RNA"]] <- split(so[["RNA"]], f = so$sequencing_run_cell_type)
@@ -1153,7 +1221,7 @@ print(elbow)
 
 ```{r}
 # PCA Plot
-pca.plot <- DimPlot(so, reduction = "pca", group.by = c("cell_type", "sequencing_run"))
+pca.plot <- DimPlot(so, reduction = "pca", group.by = "cell_type")  #c("cell_type", "sequencing_run")
 print(pca.plot)
 
 # Saving the plot 
@@ -1174,7 +1242,7 @@ gc()
 
 ```{r}
 # Plotting a UMAP Plot for cell types and sequencing runs
-before_integration_umap <- DimPlot(so, reduction = "umap.unintegrated", group.by = c("cell_type", "sequencing_run"))
+before_integration_umap <- DimPlot(so, reduction = "umap.unintegrated", group.by = "cell_type")  #c("cell_type", "sequencing_run")
 print(before_integration_umap)
 
 # UMAP Plot of iPSC or neuronal marker genes
@@ -1188,7 +1256,7 @@ print(UMAP_plot)
 
 
 
-# 4. Integrative analysis
+# 4. Integrative analysis (optional)
 
 ```{r}
 # Using Harmony
@@ -1241,10 +1309,10 @@ so <- subset(so, gRNA %in% c(ntc_grnas, targeting_grnas))
 
 ```{r}
 # Saving the processed, integrated seurat object
-#qs_save(object = so, file = paste0(dir_10x, "seurat_objects/1_integrated_processed_NTC.qs2"))
+qs_save(object = so, file = paste0(dir_10x, "seurat_objects/1_integrated_processed_compass.qs2"))
 
 # Importing the processed, integrated seurat object
-so <- qs_read(file = paste0(dir_10x, "seurat_objects/1_integrated_processed_NTC.qs2"))
+#so <- qs_read(file = paste0(dir_10x, "seurat_objects/1_integrated_processed_NTC.qs2"))
 meta <- so@meta.data
 ```
 
@@ -1312,8 +1380,8 @@ ntc <- gtools::mixedsort(unique(so_ntc$gRNA))
 ntc_degs <- FindAllMarkers(so_ntc, group.by = "gRNA", logfc.threshold = 0, test.use = "wilcox")
 ntc_degs <- ntc_degs %>% dplyr::mutate(
     regulation = dplyr::case_when(
-      p_val_adj < 0.05 & avg_log2FC >= 0.2 ~ "up",   #inverse increase for upregulated DEGs
-      p_val_adj < 0.05 & avg_log2FC <= -0.2 ~ "down"   #30% decrease for downregulated DEGs
+      p_val_adj < 0.05 & avg_log2FC >= 0.2 ~ "up",   #~15 increase for upregulated DEGs
+      p_val_adj < 0.05 & avg_log2FC <= -0.2 ~ "down"   #~15% decrease for downregulated DEGs
     )
   )
 ```
@@ -1402,9 +1470,39 @@ pairwise_degs2 <- dplyr::distinct(pairwise_degs2)
 ## 7.1 Wilcoxon on Target Genes
 
 ```{r}
+#Idents(so_filt) <- "NT_gRNA"
+#de_fast_wilcox <- wilcoxauc(so_filt, group_by = "NT_gRNA")
+#so_filt <- subset(so, cell_type == "iNeuron")
+#Idents(so_filt) <- "NT_gRNA"
+#target_gRNAs <- setdiff(unique(so_filt$NT_gRNA), "NonTargeting")
+#gRNA_counts <- table(so_filt$NT_gRNA)
+#n_total <- length(target_gRNAs)
+#n_start = 1
+#full_degs_list <- list()
+#target_gene_deg_list <- list()
+
+#so_sub <- subset(so_filt, idents = c("SETBP1-g6", "NonTargeting"))
+#res <- wilcoxauc(so_sub, group_by = "NT_gRNA", assay = "data", seurat_assay = "RNA") %>% dplyr::filter(group == "SETBP1-g6")
+
+#degs_temp <- FindMarkers(so_sub, ident.1 = "SETBP1-g6", ident.2 = "NonTargeting", logfc.threshold = 0, test.use = "wilcox")
+#res$avg_log2FC <- res$logFC / log(2)
+```
+
+```{r}
+deg_list <- lapply(target_gRNAs, function(g) {
+  #print(g)
+})
+```
+
+
+```{r}
 # iNeuron or iPSC
 so_filt <- subset(so, cell_type == "iNeuron")
-Idents(so_filt) <- "NT_gRNA"
+
+# Optional shuffling of guide labels for permutation testing
+set.seed(1)
+so_filt$NT_gRNA_shuffle <- sample(as.character(so_filt$NT_gRNA))
+Idents(so_filt) <- "NT_gRNA_shuffle"  #NT_gRNA or NT_gRNA_shuffle
 guides <- unique(so_filt$NT_gRNA)
 guides <- guides[guides != "NonTargeting"]
 gRNA_counts <- table(so_filt$NT_gRNA)
@@ -1413,7 +1511,9 @@ n_start = 1
 full_degs_list <- list()
 target_gene_deg_list <- list()
 
-for (gRNA in guides) {
+sample_guides <- c("KMT2B-g4", "SETD1B-g6", "KMT2C-g9", "KMT2A-g6", "KDM6A-g1")
+
+for (gRNA in sample_guides) {
   
   # Check for min cell count
   if (gRNA_counts[gRNA] < 3) {
@@ -1425,12 +1525,13 @@ for (gRNA in guides) {
   # Wilcox differential expression
   degs_temp <- FindMarkers(so_filt, ident.1 = gRNA, ident.2 = "NonTargeting", logfc.threshold = 0, test.use = "wilcox")
   degs_temp <- rownames_to_column(degs_temp, var = "gene")
+  degs_temp$FDR <- p.adjust(p = degs_temp$p_val, method = "fdr")
   
   # DEG regulation direction
   degs_temp <- degs_temp %>% dplyr::mutate(
     regulation = dplyr::case_when(
-      p_val_adj < 0.05 & avg_log2FC > 0.2 ~ "up",
-      p_val_adj < 0.05 & avg_log2FC < -0.2 ~ "down"
+      FDR < 0.05 & avg_log2FC > 0.2 ~ "up",
+      FDR < 0.05 & avg_log2FC < -0.2 ~ "down"
     )
   )
   table_degs <- table(degs_temp$regulation)
@@ -1442,7 +1543,7 @@ for (gRNA in guides) {
   degs_temp$gRNA <- gRNA
   degs_temp$cell_count <- gRNA_counts[gRNA]
   degs_temp <- degs_temp %>% tidyr::separate(col = "gRNA", into = c("target_gene", "guide_replicate"), sep = "-", remove = FALSE)
-  degs_temp <- degs_temp[, c("gene", "gRNA", "target_gene", "guide_replicate", "pct.1", "pct.2", "avg_log2FC", "p_val", "p_val_adj", "regulation", "up_DEGs", "down_DEGs", "total_DEGs", "cell_count")]
+  degs_temp <- degs_temp[, c("gene", "gRNA", "target_gene", "guide_replicate", "pct.1", "pct.2", "avg_log2FC", "p_val", "p_val_adj", "FDR", "regulation", "up_DEGs", "down_DEGs", "total_DEGs", "cell_count")]
   
   # Adding to list
   full_degs_list[[gRNA]] <- degs_temp
@@ -1457,6 +1558,11 @@ for (gRNA in guides) {
   n_start <- n_start + 1
 }
 ```
+
+```{r}
+ex_degs_shuffle <- full_degs_list[[2]]
+```
+
 
 ```{r}
 # Merging the list and filtering for effective gRNAs
